@@ -4,7 +4,7 @@
   "compatibility_date": "2026-11-19",
   "observability": { "enabled": true },
   // Served only on the custom domain (one address = one copy of on-device data).
-  "routes": [{ "pattern": "workouts.micahtid.com", "custom_domain": true }],
+  "routes": [{ "pattern": "wt.micahtid.com", "custom_domain": true }],
   "workers_dev": false,
   "preview_urls": false,
   // Static site: serve the Vite build. Any path that isn't a file (e.g. /stats)
