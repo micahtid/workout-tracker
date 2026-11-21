@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "plus jakarta sans",
+        "createdAt": "2026-11-21T20:00:11.233Z",
+        "reason": "user requested: asked for 'Jakarta Sans or such' in chat"
+      }
+    ]
+  }
+}
