@@ -1,34 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Check, ChevronLeft, Copy, Eye, EyeOff } from 'lucide-vue-next'
+import { Check, ChevronLeft, Copy } from 'lucide-vue-next'
 import { createSync, linkSync, sync, unlinkSync } from '@/sync'
 import { generateCode, normalizeCode } from '@/sync/code'
 
 const entered = ref('')
 const valid = computed(() => normalizeCode(entered.value))
-const show = ref(false)
 const copied = ref(false)
-
-const statusText = computed(() => {
-  switch (sync.status) {
-    case 'synced': return 'Synced'
-    case 'syncing': return 'Syncing…'
-    case 'offline': return 'Offline · Changes Will Sync Later'
-    case 'error': return "Can't Reach Server · Retrying"
-    default: return 'Off'
-  }
-})
-
-const masked = computed(() => (sync.code ?? '').replace(/[A-Z0-9]/g, '•'))
-
-function create() {
-  createSync(generateCode())
-  show.value = true
-}
 
 function link() {
   if (!valid.value) return
-  if (!confirm('Link this device? Its workouts will be replaced with the ones synced to this code.')) return
+  if (!confirm("Replace this device's workouts with the ones on this code?")) return
   linkSync(valid.value)
   entered.value = ''
 }
@@ -39,15 +21,12 @@ async function copy() {
     await navigator.clipboard.writeText(sync.code)
     copied.value = true
     setTimeout(() => (copied.value = false), 1500)
-  } catch {
-    show.value = true
-  }
+  } catch {}
 }
 
 function unlink() {
-  if (!confirm('Stop syncing on this device? Your workouts stay on this device, and other devices keep syncing.')) return
+  if (!confirm('Stop syncing on this device? Your workouts stay here.')) return
   unlinkSync()
-  show.value = false
 }
 </script>
 
@@ -59,83 +38,58 @@ function unlink() {
 
     <h1>Sync</h1>
 
-    <p v-if="!sync.available" class="muted">Sync isn't configured for this build.</p>
+    <p v-if="!sync.available" class="muted">Sync isn't available.</p>
 
-    <!-- Linked -->
+    <!-- Linked: the code and a way out. -->
     <template v-else-if="sync.code">
-      <p class="status">
-        <span class="dot" :class="sync.status" aria-hidden="true" />
-        {{ statusText }}
-      </p>
-
-      <section class="section">
-        <p class="label">Your Sync Code</p>
-        <div class="code-row">
-          <span class="code tabular">{{ show ? sync.code : masked }}</span>
-          <button class="icon-btn" :aria-label="show ? 'Hide Code' : 'Show Code'" @click="show = !show">
-            <EyeOff v-if="show" :size="18" />
-            <Eye v-else :size="18" />
-          </button>
-          <button class="icon-btn" aria-label="Copy Code" @click="copy">
-            <Check v-if="copied" :size="18" />
-            <Copy v-else :size="18" />
-          </button>
-        </div>
-        <p class="hint muted">
-          Enter this code on your other devices to sync them. Keep it private: anyone with it can see and edit your workouts.
-        </p>
-      </section>
-
-      <div class="end">
-        <button class="btn-danger" @click="unlink">Stop Syncing on This Device</button>
-      </div>
+      <button class="code tabular" :aria-label="copied ? 'Copied' : 'Copy Code'" @click="copy">
+        <span>{{ sync.code }}</span>
+        <Check v-if="copied" :size="18" />
+        <Copy v-else :size="18" />
+      </button>
+      <button class="btn-text off" @click="unlink">Stop Syncing</button>
     </template>
 
-    <!-- Not linked -->
+    <!-- Not linked: enter a code, or make one. -->
     <template v-else>
-      <p class="muted intro">Keep your workouts in step across your phone and other devices. Everything still works offline.</p>
-
-      <section class="section">
-        <p class="label">First Device</p>
-        <button class="btn-primary" @click="create">Create Sync Code</button>
-      </section>
-
-      <section class="section">
-        <p class="label">Already Have a Code?</p>
-        <input
-          v-model="entered"
-          class="code-input tabular"
-          placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
-          autocapitalize="characters"
-          autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
-          aria-label="Sync Code"
-          @keydown.enter="link"
-        />
-        <button class="btn-primary link" :disabled="!valid" @click="link">Link This Device</button>
-      </section>
+      <input
+        v-model="entered"
+        class="code-input tabular"
+        placeholder="Enter Code"
+        autocapitalize="characters"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        aria-label="Sync Code"
+        @keydown.enter="link"
+      />
+      <button class="btn-primary" :disabled="!valid" @click="link">Link Device</button>
+      <button class="btn-text new" @click="createSync(generateCode())">Or Create a New Code</button>
     </template>
   </main>
 </template>
 
 <style scoped>
-.intro { margin: 0; line-height: 1.5; }
+.code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radius);
+  background: var(--field);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.code .lucide { color: var(--text-2); }
 
-.status { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.dot.synced { background: var(--text); }
-.dot.syncing { background: var(--text-2); animation: pulse 1s ease-in-out infinite alternate; }
-@keyframes pulse { to { opacity: 0.3; } }
+.off { margin-top: 16px; font-size: 0.85rem; color: var(--muted); }
 
-.code-row { display: flex; align-items: center; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.code { flex: 1; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.04em; }
-.code-row .icon-btn { width: 36px; height: 36px; color: var(--text-2); }
-.code-row .icon-btn:last-child { margin-right: -8px; }
-.hint { font-size: 0.82rem; line-height: 1.5; margin: 12px 0 0; }
-
-.code-input { height: 48px; text-align: center; letter-spacing: 0.06em; text-transform: uppercase; }
-.link { margin-top: 8px; }
-
-.end { display: flex; justify-content: center; margin-top: 48px; }
+.code-input { height: 48px; text-align: center; font-size: 1.05rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.code-input::placeholder { text-transform: none; letter-spacing: 0; }
+.btn-primary { margin-top: 8px; }
+.new { display: flex; margin: 16px auto 0; font-size: 0.85rem; }
 </style>
