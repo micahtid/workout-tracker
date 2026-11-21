@@ -1,4 +1,4 @@
-import { mutationGeneric as mutation, queryGeneric as query } from 'convex/server'
+import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 
 // Vault keys are 64-char hex SHA-256 digests of the client's sync code.
