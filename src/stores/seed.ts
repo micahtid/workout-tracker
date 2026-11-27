@@ -1,7 +1,7 @@
 import type { Template, TemplateExercise } from './workouts'
 import { uid } from '@/utils/uid'
 
-type Row = [name: string, sets: number | [min: number, max: number], reps: string, opts?: { ss?: boolean; optional?: boolean }]
+type Row = [name: string, sets: number | [min: number, max: number], reps: string, opts?: { optional?: boolean }]
 
 const ex = ([name, sets, reps, opts]: Row): TemplateExercise => ({
   id: uid(),
@@ -9,7 +9,7 @@ const ex = ([name, sets, reps, opts]: Row): TemplateExercise => ({
   sets: Array.isArray(sets) ? sets[1] : sets,
   setsNote: Array.isArray(sets) ? `${sets[0]}–${sets[1]}` : undefined,
   reps,
-  superset: !!opts?.ss,
+  superset: false,
   optional: opts?.optional,
 })
 
@@ -21,18 +21,16 @@ const t = (name: string, note: string, day: number, rows: Row[]): Template => ({
   exercises: rows.map(ex),
 })
 
-const SS = { ss: true }
-
-/** Starter program. Sun Upper · Mon Lower · Tue Pull · Wed Rest · Thu Push · Fri Legs · Sat Rest */
+/** Starter program. Sun Upper · Mon Lower · Tue Rest · Wed Pull · Thu Push · Fri Legs · Sat Rest */
 export const seedTemplates = (): Template[] => [
   t('Upper', 'Heavy / Strength', 0, [
     ['Iso Incline Chest Press', 3, '5–6'],
     ['Weighted Pull-Ups', 3, '5–6'],
     ['Weighted Dips', 3, '6–8'],
     ['Iso Rows', 3, '6–8'],
-    ['Preacher Curls', 3, '6–8', SS],
+    ['Preacher Curls', 3, '6–8'],
     ['Overhead Cable Triceps Extension', 3, '8–10'],
-    ['Cable Lateral Raises', [3, 4], '12–15', SS],
+    ['Cable Lateral Raises', [3, 4], '12–15'],
     ['Reverse Pec Deck', 3, '12–15'],
     ['Reverse Curls', [2, 3], '10–12'],
   ]),
@@ -41,14 +39,14 @@ export const seedTemplates = (): Template[] => [
     ['Pendulum Squat', 3, '5–6'],
     ['Romanian Deadlift', 3, '6–8'],
     ['Leg Extensions', 3, '8–10'],
-    ['Standing Calf Raises', 4, '10–15', SS],
+    ['Standing Calf Raises', 4, '10–15'],
     ['Hanging Leg Raises', 3, '10–15'],
   ]),
-  t('Pull', 'Hypertrophy', 2, [
+  t('Pull', 'Hypertrophy', 3, [
     ['Weighted Pull-Ups', 3, '6–8'],
     ['Iso Rows', 3, '8–10'],
     ['Incline Bicep Curls', 3, '8–10'],
-    ['Reverse Pec Deck', 3, '12–15', SS],
+    ['Reverse Pec Deck', 3, '12–15'],
     ['Shrugs', 3, '12–15', { optional: true }],
     ['Reverse Curls', [2, 3], '10–12'],
   ]),
@@ -65,7 +63,7 @@ export const seedTemplates = (): Template[] => [
     ['Romanian Deadlift', 3, '8–10'],
     ['Leg Extensions', 3, '10–12'],
     ['Leg Curls', 3, '10–12'],
-    ['Standing Calf Raises', 4, '12–15', SS],
+    ['Standing Calf Raises', 4, '12–15'],
     ['Hanging Leg Raises', 3, '10–15'],
   ]),
 ]

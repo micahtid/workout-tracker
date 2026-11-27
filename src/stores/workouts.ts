@@ -97,6 +97,8 @@ export const useWorkoutStore = defineStore(
     const sessions = ref<Session[]>([]) // finished, newest first
     const active = ref<Session | null>(null)
     const seeded = ref(false)
+    /** One-time data fixes already applied on this device. */
+    const migrations = ref<string[]>([])
 
     // ---- Sync bookkeeping ----
     /** Deleted template ids → deletion time, so deletions reach other devices. */
@@ -119,8 +121,38 @@ export const useWorkoutStore = defineStore(
     }
 
     /** Load the starter program once, on first launch. */
+    /**
+     * One-time fixes to saved workouts. Each bumps the template's updatedAt by
+     * just 1ms, so the fixed copy beats the unfixed one on every device and
+     * syncs, but never overrides a real edit made since on another device.
+     */
+    function migrateOnce(id: string, fix: () => void) {
+      if (migrations.value.includes(id)) return
+      migrations.value.push(id)
+      fix()
+    }
+    const bump = (t: Template) => (t.updatedAt = (t.updatedAt ?? 1) + 1)
+
+    function migrateData() {
+      // Pull moved from Tuesday to Wednesday.
+      migrateOnce('pull-wednesday', () => {
+        const pull = templates.value.find((t) => t.name === 'Pull' && t.day === 2)
+        if (pull) { pull.day = 3; bump(pull) }
+      })
+      // Supersets retired: every exercise stands alone. Logged history is untouched.
+      migrateOnce('no-supersets', () => {
+        for (const t of templates.value) {
+          if (!t.exercises.some((e) => e.superset)) continue
+          t.exercises.forEach((e) => (e.superset = false))
+          bump(t)
+        }
+        active.value?.exercises.forEach((e) => (e.superset = false))
+      })
+    }
+
     function seedIfEmpty() {
       migrateNames()
+      migrateData()
       if (seeded.value) return
       seeded.value = true
       if (!templates.value.length) templates.value = seedTemplates()
@@ -286,7 +318,7 @@ export const useWorkoutStore = defineStore(
     })
 
     return {
-      templates, sessions, active, seeded, deletedTemplates, activeAt, exerciseHistory,
+      templates, sessions, active, seeded, migrations, deletedTemplates, activeAt, exerciseHistory,
       seedIfEmpty, trackActive, resetForLink, applyRemote, getTemplate, saveTemplate, deleteTemplate, newTemplate, newTemplateExercise,
       previousSets, startSession, finishSession, discardSession,
     }
