@@ -17,10 +17,4 @@ export function shortDate(ts: number) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })
 }
 
-/** 150 → "2:30" */
-export function clock(totalSec: number) {
-  const s = Math.max(0, Math.round(totalSec))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-
-export const num =(n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })
+export const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })

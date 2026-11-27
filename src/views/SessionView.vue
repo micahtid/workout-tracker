@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowUp, Check, ChevronLeft, Volume2, VolumeX } from 'lucide-vue-next'
+import { ArrowUp, ChevronLeft } from 'lucide-vue-next'
 import { e1rm, groupSupersets, useWorkoutStore, type SetEntry } from '@/stores/workouts'
-import RestTimer from '@/components/RestTimer.vue'
 import { relativeDay } from '@/utils/format'
-import { playChime, primeChime } from '@/utils/chime'
 
 const store = useWorkoutStore()
 const router = useRouter()
@@ -46,69 +44,22 @@ function improved(ei: number, si: number, set: SetEntry) {
 }
 
 /**
- * Ticking a set: empty reps take last time's reps at that weight (the corner
- * number), so repeating last session is one tap. Also starts that exercise's
- * rest timer.
+ * A set is complete once it has a weight and reps. Weight is prefilled from
+ * last time, so entering the reps is usually all it takes. Clearing a value
+ * makes it incomplete again.
  */
-function toggle(ei: number, si: number, set: SetEntry) {
-  if (set.done) {
-    set.done = false
-    return
-  }
-  set.reps ??= lastReps(ei, si, set.weight)
-  if (set.weight == null || !set.reps) {
-    document.getElementById(`${set.weight == null ? 'w' : 'r'}-${ei}-${si}`)?.focus()
-    return
-  }
-  set.done = true
-  primeChime()
-  navigator.vibrate?.(10)
-  store.startTimer(ei)
+function update(set: SetEntry) {
+  // v-model.number leaves '' when a field is cleared; treat that as empty.
+  if (typeof set.weight !== 'number') set.weight = null
+  if (typeof set.reps !== 'number') set.reps = null
+  set.done = set.weight != null && !!set.reps
 }
-
-function toggleTimer(ei: number) {
-  primeChime()
-  if (store.active?.timer?.ex === ei) store.stopTimer()
-  else store.startTimer(ei)
-}
-
-// Clock for the rest timer; the start time is saved, so it survives closing the app.
-const now = ref(Date.now())
-let tick: number | undefined
-watch(
-  () => store.active?.timer,
-  (t) => {
-    clearInterval(tick)
-    if (t) tick = window.setInterval(() => (now.value = Date.now()), 250)
-    now.value = Date.now()
-  },
-  { immediate: true },
-)
-// When rest is over: chime + buzz, then the timer resets to its idle button.
-// If it ran out while the app was closed or in the background (the clock
-// jumped instead of ticking), it just resets quietly — no late chime.
-const expired = () => {
-  const t = store.active?.timer
-  const ex = t && store.active?.exercises[t.ex]
-  return !!(t && ex && Date.now() - t.start >= ex.rest * 1000)
-}
-if (expired()) store.stopTimer()
-let lastTick = Date.now()
-watch(now, (n) => {
-  const resumed = n - lastTick > 2000
-  lastTick = n
-  if (!expired()) return
-  store.stopTimer()
-  if (resumed) return
-  navigator.vibrate?.([200, 100, 200])
-  if (store.sound) playChime()
-})
 
 const totalSets = computed(() => store.active?.exercises.reduce((n, e) => n + e.sets.length, 0) ?? 0)
 const doneCount = computed(() => store.active?.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0) ?? 0)
 
 function finish() {
-  if (!doneCount.value && !confirm('No sets are checked off. Finish without saving anything?')) return
+  if (!doneCount.value && !confirm('No sets are filled in. Finish without saving anything?')) return
   store.finishSession()
   router.replace('/')
 }
@@ -119,7 +70,7 @@ function discard() {
   router.replace('/')
 }
 
-// Keep the screen awake during a workout so the timer stays visible.
+// Keep the screen awake during a workout so you don't have to unlock between sets.
 let wakeLock: WakeLockSentinel | null = null
 const lock = async () => {
   try { if (document.visibilityState === 'visible') wakeLock = await navigator.wakeLock?.request('screen') } catch {}
@@ -132,7 +83,6 @@ onMounted(() => {
   window.addEventListener('beforeunload', warn)
 })
 onBeforeUnmount(() => {
-  clearInterval(tick)
   wakeLock?.release()
   document.removeEventListener('visibilitychange', lock)
   window.removeEventListener('beforeunload', warn)
@@ -143,18 +93,7 @@ onBeforeUnmount(() => {
   <main v-if="store.active">
     <div class="topbar">
       <RouterLink to="/" class="btn-text"><ChevronLeft :size="18" /> Workouts</RouterLink>
-      <span class="topbar-actions">
-        <button
-          class="icon-btn"
-          :aria-label="store.sound ? 'Mute Timer Sound' : 'Unmute Timer Sound'"
-          :aria-pressed="store.sound"
-          @click="store.sound = !store.sound; store.sound && primeChime()"
-        >
-          <Volume2 v-if="store.sound" :size="18" />
-          <VolumeX v-else :size="18" />
-        </button>
-        <button class="btn-small" @click="finish">Finish</button>
-      </span>
+      <button class="btn-small" @click="finish">Finish</button>
     </div>
 
     <h1>{{ store.active.name }}</h1>
@@ -179,16 +118,10 @@ onBeforeUnmount(() => {
                 {{ ex.sets.length }} × {{ ex.target || '—' }}<template v-if="ex.optional"> · Optional</template>
               </span>
             </div>
-            <RestTimer
-              :duration="ex.rest"
-              :start="store.active.timer?.ex === ei ? store.active.timer.start : null"
-              :now="now"
-              @toggle="toggleTimer(ei)"
-            />
           </header>
 
           <div class="grid cols" aria-hidden="true">
-            <span>Set</span><span>Weight</span><span>Reps</span><span />
+            <span>Set</span><span>Weight</span><span>Reps</span>
           </div>
 
           <div v-for="(set, si) in ex.sets" :key="si" class="grid row" :class="{ done: set.done }">
@@ -205,6 +138,7 @@ onBeforeUnmount(() => {
               class="tabular"
               placeholder="lb"
               :aria-label="`${ex.name} Set ${si + 1} Weight`"
+              @input="update(set)"
               @focus="($event.target as HTMLInputElement).select()"
             />
             <span class="reps-cell">
@@ -215,15 +149,13 @@ onBeforeUnmount(() => {
                 inputmode="numeric"
                 class="tabular"
                 :aria-label="`${ex.name} Set ${si + 1} Reps${lastReps(ei, si, set.weight) ? `, Last Time ${lastReps(ei, si, set.weight)}` : ''}`"
+                @input="update(set)"
                 @focus="($event.target as HTMLInputElement).select()"
               />
               <span v-if="!set.done && lastReps(ei, si, set.weight)" class="last tabular" aria-hidden="true">
-                Last {{ lastReps(ei, si, set.weight) }}
+                {{ lastReps(ei, si, set.weight) }}
               </span>
             </span>
-            <button class="check" :aria-pressed="set.done" :aria-label="`Complete Set ${si + 1}`" @click="toggle(ei, si, set)">
-              <Check :size="18" />
-            </button>
           </div>
         </template>
       </section>
@@ -248,7 +180,7 @@ h1 { margin-bottom: 16px; }
 .bar span { display: block; height: 100%; background: var(--text); transform-origin: left; transition: transform 300ms ease-out; }
 
 /* Groups are separated by hairlines. A superset is a soft grey panel holding
-   its exercises (A1, A2…) so the pairing reads at a glance. */
+   its exercises so the pairing reads at a glance. */
 .group { --group-bg: var(--bg); --input-bg: var(--field); border-bottom: 1px solid var(--line); padding: 8px 0 20px; }
 .group.superset {
   --group-bg: var(--tint);
@@ -265,7 +197,7 @@ h1 { margin-bottom: 16px; }
 .exercise + .exercise { margin-top: 8px; }
 .superset .exercise + .exercise { border-top: 1px solid color-mix(in srgb, var(--line), var(--text) 6%); margin-top: 12px; }
 
-/* Header with the rest timer stays visible while you scroll the exercise. */
+/* Exercise header stays visible while you scroll its sets. */
 header {
   position: sticky;
   top: var(--safe-top);
@@ -280,7 +212,7 @@ header {
 h2 { font-size: 1rem; font-weight: 600; margin: 0; line-height: 1.3; }
 .meta { font-size: 0.82rem; }
 
-.grid { display: grid; grid-template-columns: 28px 1fr 1fr 44px; gap: 8px; align-items: center; }
+.grid { display: grid; grid-template-columns: 28px 1fr 1fr; gap: 8px; align-items: center; }
 .cols { font-size: 0.75rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
 .cols span:nth-child(2), .cols span:nth-child(3) { text-align: center; }
 
@@ -293,16 +225,6 @@ h2 { font-size: 1rem; font-weight: 600; margin: 0; line-height: 1.3; }
 .reps-cell { position: relative; display: block; }
 .last { position: absolute; top: 4px; right: 7px; font-size: 0.62rem; font-weight: 500; color: var(--muted); pointer-events: none; }
 .row.done input { background: transparent; font-weight: 600; }
-
-.check {
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius);
-  background: var(--input-bg);
-  color: var(--muted);
-}
-.row.done .check { background: var(--primary); color: var(--primary-text); }
 
 .end { display: flex; justify-content: center; margin-top: 32px; }
 </style>

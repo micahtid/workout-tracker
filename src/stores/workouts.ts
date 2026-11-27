@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
 import { RENAMES, seedTemplates } from './seed'
+import { uid } from '@/utils/uid'
 
 /** A reusable workout plan. */
 export interface Template {
@@ -23,10 +24,6 @@ export interface TemplateExercise {
   setsNote?: string
   /** Target rep range, e.g. "8–10". */
   reps: string
-  /** Rest in seconds after a set of this exercise. In a superset, the
-   *  first exercise's rest is the gap between exercises and the last's is
-   *  the rest after each round. */
-  rest: number
   /** Superset with the next exercise in the list. */
   superset: boolean
   optional?: boolean
@@ -41,7 +38,6 @@ export interface SetEntry {
 export interface SessionExercise {
   name: string
   target: string
-  rest: number
   superset: boolean
   optional?: boolean
   sets: SetEntry[]
@@ -55,8 +51,6 @@ export interface Session {
   startedAt: number
   finishedAt: number | null
   exercises: SessionExercise[]
-  /** Running rest timer: which exercise and when it started. */
-  timer?: { ex: number; start: number } | null
 }
 
 /** What the server returns for a sync code (see convex/sync.ts → pull). */
@@ -76,10 +70,6 @@ export interface ExercisePoint {
 
 export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-/** Random id. crypto.randomUUID only exists on https pages, so fall back for local-network testing. */
-const uid = () =>
-  crypto.randomUUID?.() ??
-  [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('')
 export const exerciseKey = (name: string) => name.trim().toLowerCase()
 /** Epley estimated one-rep max — one number that rewards both more weight and more reps. */
 export const e1rm = (w: number, r: number) => (r <= 1 ? w : w * (1 + r / 30))
@@ -107,8 +97,6 @@ export const useWorkoutStore = defineStore(
     const sessions = ref<Session[]>([]) // finished, newest first
     const active = ref<Session | null>(null)
     const seeded = ref(false)
-    /** Play a chime when rest is over. */
-    const sound = ref(true)
 
     // ---- Sync bookkeeping ----
     /** Deleted template ids → deletion time, so deletions reach other devices. */
@@ -206,7 +194,7 @@ export const useWorkoutStore = defineStore(
     }
 
     function newTemplateExercise(name = ''): TemplateExercise {
-      return { id: uid(), name, sets: 3, reps: '', rest: 90, superset: false }
+      return { id: uid(), name, sets: 3, reps: '', superset: false }
     }
 
     /** Last finished sets for an exercise — same workout first, else any workout.
@@ -233,7 +221,6 @@ export const useWorkoutStore = defineStore(
         name: t.name,
         startedAt: Date.now(),
         finishedAt: null,
-        timer: null,
         // Weight is pre-filled from last time; reps start empty, with last
         // time's reps at that weight shown in the corner of the reps box.
         exercises: t.exercises.map((ex) => {
@@ -241,7 +228,6 @@ export const useWorkoutStore = defineStore(
           return {
             name: ex.name,
             target: ex.reps ?? '',
-            rest: ex.rest ?? 90,
             superset: !!ex.superset,
             optional: ex.optional,
             sets: Array.from({ length: Math.max(ex.sets, 1) }, (_, i) => ({
@@ -254,14 +240,6 @@ export const useWorkoutStore = defineStore(
       }
     }
 
-    function startTimer(ex: number) {
-      if (active.value) active.value.timer = { ex, start: Date.now() }
-    }
-
-    function stopTimer() {
-      if (active.value) active.value.timer = null
-    }
-
     function finishSession() {
       const s = active.value
       if (!s) return
@@ -269,7 +247,7 @@ export const useWorkoutStore = defineStore(
       const exercises = s.exercises
         .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done && x.weight != null && x.reps) }))
         .filter((e) => e.sets.length)
-      if (exercises.length) sessions.value.unshift({ ...s, exercises, timer: null, finishedAt: Date.now() })
+      if (exercises.length) sessions.value.unshift({ ...s, exercises, finishedAt: Date.now() })
       active.value = null
     }
 
@@ -308,9 +286,9 @@ export const useWorkoutStore = defineStore(
     })
 
     return {
-      templates, sessions, active, seeded, sound, deletedTemplates, activeAt, exerciseHistory,
+      templates, sessions, active, seeded, deletedTemplates, activeAt, exerciseHistory,
       seedIfEmpty, trackActive, resetForLink, applyRemote, getTemplate, saveTemplate, deleteTemplate, newTemplate, newTemplateExercise,
-      previousSets, startSession, startTimer, stopTimer, finishSession, discardSession,
+      previousSets, startSession, finishSession, discardSession,
     }
   },
   { persist: true },

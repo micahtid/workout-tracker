@@ -3,7 +3,6 @@ import { computed, ref, type Directive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, ArrowUp, Minus, Plus, X } from 'lucide-vue-next'
 import { DAYS, groupSupersets, useWorkoutStore, type Template } from '@/stores/workouts'
-import { clock } from '@/utils/format'
 
 const store = useWorkoutStore()
 const route = useRoute()
@@ -157,14 +156,6 @@ function remove() {
               <span>Reps</span>
               <input v-model="ex.reps" class="reps" placeholder="8–10" />
             </label>
-            <label>
-              <span>Rest</span>
-              <span class="stepper">
-                <button :disabled="ex.rest <= 15" aria-label="Less Rest" @click="ex.rest -= 15"><Minus :size="16" /></button>
-                <b class="tabular">{{ clock(ex.rest) }}</b>
-                <button aria-label="More Rest" @click="ex.rest += 15"><Plus :size="16" /></button>
-              </span>
-            </label>
           </div>
 
           <div class="foot">
@@ -232,7 +223,7 @@ function remove() {
 .suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
 .suggest button { padding: 6px 10px; border-radius: var(--radius); background: var(--input-bg); font-size: 0.82rem; color: var(--text-2); }
 
-.fields { display: grid; grid-template-columns: 1fr 0.8fr 1fr; gap: 8px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fields label { display: grid; gap: 6px; }
 .fields label > span:first-child { font-size: 0.75rem; font-weight: 500; color: var(--muted); }
 .stepper { display: flex; align-items: center; justify-content: space-between; height: 40px; background: var(--input-bg); border-radius: var(--radius); }
